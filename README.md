@@ -1,101 +1,670 @@
----
-# Talkbox Driver PCB Project - Bill of Materials (BoM)
+# TalkBox — High-Power Talk Box PCB Project
 
-This project powers a 100 W, 16 Ω compression driver for use in a talkbox. It supports both guitar (instrument level) and synth (line level) inputs. The design includes volume control, amplification, and output filtering to drive the speaker effectively.
-
----
-
-## 🎛️ Inputs
-### 1. Instrument Level Input (Guitar)
-- **Connector**: 1× 6.35 mm mono jack (panel-mount)
-- **Coupling Capacitor**: 1× 10 µF film or bipolar electrolytic capacitor
-- **Resistor Divider / Pad** (optional): 1× 1 MΩ to ground
-
-### 2. Line Level Input (Synth)
-- **Connector**: 1× 6.35 mm or 3.5 mm stereo jack (panel-mount)
-- **Coupling Capacitor**: 1× 10 µF film or bipolar electrolytic capacitor
-- **Series Resistor**: 1× 10 kΩ (to mix to mono and protect input)
+> A from-scratch, no-compromise talk box design built to outperform the TalkStar.
+> **100 W Class D** into a **MIYAKO DU-100 compression driver** (16 Ω), powered by a **48 V / 5 A** brick.
 
 ---
 
-## 🎚️ Volume Control
-- **Potentiometer**: 1× 10 kΩ logarithmic (audio taper), panel-mount
-- **Knob**: 1× plastic or aluminum knob to fit above pot shaft
+## Design Goals
+| Feature | TalkStar | **TalkBox (Ours)** |
+|---|---|---|
+| Power Amplifier | 20 W RMS (Class AB) | **100+ W RMS (Class D, TPA3255)** |
+| Supply | 24 V / 60 W brick | **48 V / 240 W brick** |
+| Driver | Generic compression driver | **MIYAKO DU-100 (100 W, 16 Ω, 115 dB/W/m)** |
+| Preamp | Single op-amp stage | **Low-noise NE5532 differential input** |
+| High-Pass Filter | Fixed 150 Hz | **Switchable 100 Hz / 150 Hz / 200 Hz** |
+| Edger (Clipping) | Soft clip, invert | **Soft clip + hard clip + clean modes, invert** |
+| Tone Control | Tilt EQ | **Tilt EQ with broader sweep range** |
+| LED Lighting | Signal-following | **Signal-following + manual on/off switch** |
+| Bypass | Relay | **True-bypass DPDT relay + status LED** |
+| Protection | Basic | **Reverse polarity, DC offset, overcurrent fuse, soft-start** |
 
 ---
 
-## 🔊 Amplifier Section
-### Prebuilt Module (Recommended)
-- **Module**: 1× TDA7492P 25 W×2 stereo amplifier board or 1× TPA3116D2 mono amplifier
-- **Gain Setting**: Usually configurable with onboard resistors or jumpers
-- **Heatsink**: Should be included; necessary for high power
+## System Block Diagram
 
-### Or Discrete Option (DIY Amp)
-- **Op-amp**: 1× TL072 or NE5532 (dual op-amp)
-- **Power Amp IC**: 1× LM3886 or TDA7294 (but requires large heatsink and power supply)
-
-> 💡 Prebuilt amp modules save time and are optimized for reliability.
-
----
-
-## 🔋 Power Supply Section
-- **DC Jack**: 1× 2.1 mm barrel jack (panel-mount)
-- **Switch**: 1× SPST toggle or rocker switch (12 V or 24 V @ 5 A rated)
-- **Power Supply**:
-  - 1× 12 V–24 V DC @ 3–5 A wall adapter or external supply (matched to amp module specs)
-- **Capacitors for Decoupling**:
-  - 2× 100 µF 25 V electrolytic
-  - 2× 100 nF ceramic (X7R)
-- **Power LED**:
-  - 1× 3 mm or 5 mm red LED
-  - 1× 330 Ω resistor (for 12 V)
-
----
-
-## 📤 Output
-- **Speaker Terminals**:
-  - 1× 2-pin screw terminal or 1× panel-mount speakON or banana jack pair
-- **Compression Driver**:
-  - External speaker with 100 W @ 16 Ω
-
----
-
-## 🧩 Optional Add-ons
-- **Fuse**: Inline or PCB fuse holder (2 A slow-blow)
-- **Indicator LED for Signal**: Use an op-amp rectifier circuit if needed
-- **Mute Switch**: SPDT toggle, shorts input to GND
-
----
-
-## 🖨️ PCB Recommendations
-- Use thick traces for speaker output and power (at least 50 mil width)
-- Use ground plane under op-amps and signal areas
-- Separate analog ground from power ground if using discrete amps
-- Mount pots and jacks on enclosure and wire to board
+```
+                                                    ┌─────────────┐     ┌──────────────┐
+                                                    │  48V / 5A   │────▶│  100/240 VAC │
+                                                    │  Power Pack │     │  Wall Outlet  │
+                                                    └──────┬──────┘     └──────────────┘
+                                                           │
+                                              ┌────────────┼────────────────┐
+                                              │            │                │
+                                              ▼            ▼                ▼
+                                        ┌──────────┐ ┌──────────┐   ┌──────────┐
+                                        │  ±15 V   │ │  48 V    │   │   5 V    │
+                                        │  DC-DC   │ │  Direct  │   │  Buck    │
+                                        │ (Op-Amps)│ │ (TPA3255)│   │(Relay/  │
+                                        └────┬─────┘ └────┬─────┘   │  LEDs)  │
+                                             │            │          └────┬────┘
+                                             │            │               │
+ ┌───────┐    ┌─────────┐   ┌─────────┐  ┌──┴──────┐  ┌──┴──────┐  ┌────┴────┐
+ │ INPUT ├───▶│ PREAMP  ├──▶│ HI-PASS ├─▶│  EDGER  ├─▶│  TILT   │  │  LED    │
+ │ Jack  │    │ (Gain)  │   │ FILTER  │  │(Clipper)│  │  TONE   │  │ DRIVER  │
+ └───┬───┘    └────┬────┘   │100-200Hz│  │Soft/Hard│  │ CONTROL │  └────┬────┘
+     │             │        └─────────┘  └─────────┘  └────┬────┘       │
+     │             ▼                                       │            ▼
+     │        ┌─────────┐                             ┌────┴────┐  ┌─────────┐
+     │        │  THRU   │                             │ VOLUME  │  │  LEDs   │
+     │        │ OUTPUT  │                             │  POT    │  │(In Enc.)│
+     │        └─────────┘                             └────┬────┘  └─────────┘
+     │                                                     │
+     │                                                     ▼
+     │                                              ┌─────────────┐     ┌──────────────┐
+     │                                              │  TPA3255    │     │   MIYAKO     │
+     │                                              │  100W Class │────▶│   DU-100     │
+     │                                              │  D Power Amp│     │ (via tube)   │
+     │                                              └─────────────┘     └──────────────┘
+     │
+     │         ┌───────────┐     ┌─────────┐
+     └────────▶│ FOOTSWITCH├────▶│  RELAY  │ (True Bypass)
+               │   Jack    │     │  DPDT   │
+               └───────────┘     └─────────┘
+```
 
 ---
 
-## 📦 Summary BoM Table
+## Compression Driver Specs — MIYAKO DU-100
 
-| Qty | Description                          | Value / Notes                       |
-|-----|--------------------------------------|-------------------------------------|
-| 1   | Audio Potentiometer                  | 10 kΩ logarithmic, panel-mount      |
-| 1   | Guitar Input Capacitor               | 10 µF film or bipolar electrolytic  |
-| 1   | Line Input Capacitor                 | 10 µF film or bipolar electrolytic  |
-| 1   | Line Input Resistor                  | 10 kΩ                               |
-| 1   | Guitar Pull-down Resistor            | 1 MΩ                                |
-| 1   | Amplifier Module                     | TDA7492P / TPA3116D2                |
-| 1   | DC Barrel Jack                       | 2.1 mm center positive              |
-| 1   | Power Switch                         | SPST 12–24 V 5 A rated              |
-| 2   | Power Supply Capacitors              | 100 µF 25 V electrolytic            |
-| 2   | Decoupling Capacitors                | 100 nF ceramic (X7R)                |
-| 1   | Power LED                            | 3 mm red                            |
-| 1   | LED Current Limiting Resistor        | 330 Ω                               |
-| 1   | Speaker Terminal                     | 2-pin screw or banana jack pair     |
-| 2   | Input Jacks                          | 6.35 mm (1/4") mono/stereo          |
-| 1   | Volume Knob                          | To fit pot shaft                    |
-| —   | PCB + Enclosure                      | Custom milled or hand-drilled      |
+| Parameter | Value |
+|---|---|
+| Type | Compression Driver Horn Unit |
+| Power Rating | 100 W |
+| Impedance | 16 Ω |
+| Frequency Response | 60 Hz – 8 kHz |
+| Sensitivity | 115 dB / 1 W / 1 m |
+| Diaphragm | Neodymium |
+| Body | Aluminum |
 
 ---
 
-Let me know if you'd like this exported as a `.kicad_sch` file or turned into a full layout!
+## Section-by-Section Circuit Design
+
+---
+
+### 1. Power Supply
+
+The 48 V / 5 A (240 W) external brick feeds the board through a DC barrel jack. On-board, we derive three rails:
+
+| Rail | Purpose | Method |
+|---|---|---|
+| **48 V** | TPA3255 power amp | Direct from brick (fused, filtered) |
+| **±15 V** | Op-amp analog stages | Isolated DC-DC module (e.g., TRACO TEN 5-4823 or Murata MEE3S4815SC) |
+| **5 V** | Relay, footswitch logic, LEDs | Buck converter (LM2596-5.0 or MP1584) |
+
+#### Schematic
+
+```
+         F1 (3A)    D1 (Reverse Polarity)           C1          C2
+48V IN ──┤├────┬───▶│──┬───────────────────┬────────┤├────┬─────┤├────┬──── +48V RAIL
+                │      │                   │      470µF   │   100nF   │
+               GND     │                   │      63V     │   X7R     │
+                        │                   │             GND         GND
+                        │                   │
+                        │    ┌──────────────┴──────────────┐
+                        │    │    Isolated DC-DC Module     │
+                        │    │    48V → ±15V (3-5W)        │
+                        │    │                              │
+                        │    │  +Vin   +Vout  -Vout  -Vin  │
+                        │    └───┬───────┬──────┬──────┬───┘
+                        │        │       │      │      │
+                        │       48V   +15V   -15V    GND
+                        │               │      │
+                        │              ┌┤├┐  ┌┤├┐   C3,C4: 100µF/25V
+                        │              │   │  │   │   C5,C6: 100nF ceramic
+                        │             GND GND GND GND
+                        │
+                        │    ┌──────────────────────────┐
+                        ├───▶│   LM2596-5.0 Buck Module  │
+                        │    │   48V → 5V @ 1A           │
+                        │    │  VIN  VOUT  GND  FB       │
+                        │    └───┬────┬────┬────┘
+                        │        │   5V   GND
+                        │        │    │
+                        │       48V  ┌┤├┐  C7: 220µF/10V
+                        │           GND
+                        │
+        SW1 (Power)     │
+GND ──────/  /──────────┴──── POWER GND RAIL
+         SPST
+
+D1: P-channel MOSFET (Si4435 or IRLML6402) for low-loss reverse polarity protection
+    Gate → GND via 100kΩ, Source → input, Drain → +48V rail
+    (Or use Schottky SB560 if simplicity preferred — 0.6V drop)
+```
+
+**Notes:**
+- F1 is a 3 A slow-blow fuse in a PCB fuse holder
+- C1 (470 µF / 63 V) provides bulk energy storage
+- C2 (100 nF ceramic) decouples high-frequency noise
+- The isolated DC-DC module provides galvanically isolated ±15 V — this eliminates ground loops between the analog and power stages
+- The LM2596-5.0 module is a simple, cheap, and widely available voltage regulator
+- SW1 (power) is on the ground side to keep the positive rail always hot only after the fuse
+
+---
+
+### 2. Input Stage & Preamp
+
+The input is designed for **guitar-level signals** (~10–100 mV peak, high impedance). We use a high-impedance (1 MΩ) input buffer followed by a variable-gain stage.
+
+#### Schematic
+
+```
+                       R1 1MΩ                    C1 100nF
+INPUT JACK ──┬────────/\/\/──┬───────────────────┤├──────┬────────────┐
+  (TIP)      │               │                           │            │
+             │              GND                          │     R3     │
+            R2 1MΩ                                       │   ┌/\/\/┐  │
+             │                                           │   │ 47kΩ│  │
+            GND                                          │   │     │  │
+                                                         │   ├─────┘  │
+                         ┌───────────────────────────────┘   │        │
+                         │                                   │        │
+                         │          ┌────────────────────────┘        │
+                         │          │                                 │
+                         │  RV1     │   100kΩ Log (GAIN)              │
+                         │  ┌───────┤◁──────/\/\/──┐                  │
+                         │  │       │              │                  │
+                         │  │   R4  │              │                  │
+                         │  │  1kΩ  │              │       ┌─────┐   │
+                         │  │   │   │              │    ┌──┤+    │   │
+                         │  │   │   └──────────────┴────┤  │NE   ├───┴──▶ TO HPF
+                         │  │  GND                      │  │5532 │        (PREAMP OUT)
+                         │  │                       ┌───┤- │ A   │
+                         │  │                       │   └──┤     │
+                         │  │                       │      └─────┘
+                         │  │                       │         │
+                         │  │           R5 1kΩ      │        V+  V-
+                         │  └──────────/\/\/────────┘       +15  -15
+                         │
+                         │
+                         │         ┌─────┐
+                         │      ┌──┤+    │
+                         └──────┤  │NE   ├──────────▶ THRU OUTPUT JACK
+                                │  │5532 │
+                            ┌───┤- │ B   │
+                            │   └──┤     │
+                            │      └─────┘
+                            │         │
+                            └─────────┘  (Unity gain follower)
+```
+
+**Component Values:**
+- R1: 1 MΩ (input impedance — guitar friendly)
+- R2: 1 MΩ (pulldown to prevent DC offset when unplugged)
+- C1: 100 nF (AC coupling, f-3dB ≈ 1.6 Hz with 1 MΩ)
+- R3: 47 kΩ (sets maximum gain ≈ 47×/33 dB)
+- R4: 1 kΩ (minimum gain resistor — gain never below ~1×)
+- RV1: 100 kΩ log pot (GAIN knob)
+- R5: 1 kΩ (gain set resistor — Gain = 1 + R3/(R5 + RV1))
+  - Gain range: ~1× (RV1 max) to ~48× (RV1 zero) → 0 to 33 dB
+- NE5532A: Low-noise dual op-amp (section A = gain, section B = thru buffer)
+
+**Gain Formula:**
+$$A_v = 1 + \frac{R3}{R5 + RV1}$$
+- RV1 = 0 Ω → $A_v = 1 + 47000/1000 = 48\times$ (33.6 dB)
+- RV1 = 100 kΩ → $A_v = 1 + 47000/101000 ≈ 1.47\times$ (3.3 dB)
+
+---
+
+### 3. High-Pass Filter (Sallen-Key, 2nd Order Butterworth)
+
+Removes low frequencies that waste amplifier power and could damage the compression driver. The TalkStar uses a fixed 150 Hz. We offer a **switchable** cutoff: 100 Hz / 150 Hz / 200 Hz.
+
+#### Schematic
+
+```
+                    R1              R2
+PREAMP OUT ──┬────/\/\/──┬────────/\/\/──┬──────┐
+             │           │               │      │
+             │          C1               │      │
+             │           │               │   ┌──┤+   ┐
+             │          GND              │   │  │NE   │
+             │                          C2   │  │5532 ├──┬──▶ TO EDGER
+             │                           │   │  │ A   │  │
+             │                          GND  │  └┤-   ┘  │
+             │                               │   │       │
+             │                               │   └───────┘ (Voltage follower
+             │                               │               feedback)
+             │                               │
+             └───────────────────────────────┘
+
+FREQUENCY SELECT (SW2 — 1P3T rotary or 3-pos toggle):
+
+Position 1 (100 Hz):  R1 = R2 = 15 kΩ,   C1 = C2 = 100 nF
+  fc = 1/(2π × 15k × 100n) = 106 Hz
+
+Position 2 (150 Hz):  R1 = R2 = 10 kΩ,   C1 = C2 = 100 nF
+  fc = 1/(2π × 10k × 100n) = 159 Hz
+
+Position 3 (200 Hz):  R1 = R2 = 8.2 kΩ,  C1 = C2 = 100 nF
+  fc = 1/(2π × 8.2k × 100n) = 194 Hz
+
+Implementation: SW2 switches R1/R2 pairs (use 3 pairs of resistors on PCB,
+switch selects which pair is in circuit).
+```
+
+**Design Notes:**
+- Sallen-Key topology gives a flat (Butterworth) response with unity gain
+- 2nd order = 12 dB/octave rolloff below cutoff
+- Butterworth Q = 0.707 (maximally flat passband)
+- Use 1% metal film resistors for accuracy
+
+**Transfer Function (2nd order Butterworth HPF):**
+$$H(s) = \frac{s^2}{s^2 + \frac{\omega_0}{Q}s + \omega_0^2}$$
+
+where $\omega_0 = 2\pi f_c$ and $Q = 0.707$
+
+---
+
+### 4. Edger (Clipping/Distortion Stage)
+
+This is the signature talk box grit. We provide **three modes** via a switch: Clean, Soft Clip, and Hard Clip. Plus a phase **Invert** switch and **Edger Level** control.
+
+#### Schematic
+
+```
+                         SW3 (Mode Select: 1P3T)
+                         ┌─── Position 1: CLEAN (no diodes)
+                         │    Position 2: SOFT CLIP (diodes in feedback)
+                         │    Position 3: HARD CLIP (diodes to ground)
+                         │
+                    R1 4.7kΩ               R2 47kΩ
+HPF OUT ──┬────────/\/\/──┬───────────────/\/\/──────────────┬───┐
+           │               │                                  │   │
+           │               │         SOFT CLIP PATH:          │   │
+           │               │         D1a ──▶│──┐              │   │
+           │               │         D1b ──◀│──┤  (anti-      │   │
+           │               │                │  │  parallel)    │   │
+           │               │                │  │              │   │
+           │               │         When SW3=Pos2:           │   │
+           │               │         Diodes in parallel       │   │
+           │               │         with R2 (in feedback)    │   │
+           │               │                                  │   │
+           │               │                            ┌─────┘   │
+           │               │                            │         │
+           │               │                         ┌──┤-   ┐    │
+           │               │                         │  │NE   │   │
+           │               │                         │  │5532 ├───┴──┐
+           │               │                    ┌────┤+ │ A   │      │
+           │               │                    │    └──┤     ┘      │
+           │               │                    │       │            │
+           │               │                   GND     V+  V-       │
+           │               │                          +15  -15      │
+           │               │                                        │
+           │               │    HARD CLIP PATH (When SW3=Pos3):     │
+           │               │    Diodes D2a/D2b anti-parallel        │
+           │               │    to GND AFTER op-amp output          │
+           │               │                                        │
+           │               │              D2a ──▶│──┐               │
+           │               └──────────    D2b ──◀│──┤               │
+           │                                     │  │               │
+           │                                    GND GND             │
+           │                                                        │
+           │                                                        │
+           │              SW4 (INVERT — DPDT)                       │
+           │              Flips signal phase (×-1)                  │
+           │                                                        │
+           │              ┌─────┐                                   │
+           │           ┌──┤-    │         R3 10kΩ                   │
+           ├───────────┤  │NE   ├───┬────/\/\/──┐                   │
+           │    R4 10kΩ│  │5532 │   │           │                   │
+           │  ┌─/\/\/──┤+ │ B   │  OUT       ┌──┘                  │
+           │  │        └──┤     ┘    │       │                      │
+           │  │           │     When SW4 ON: │                      │
+           │ GND         V+  V-   output = -1 × input              │
+           │            +15  -15  When SW4 OFF: bypassed            │
+           │                                                        │
+           │                                                        │
+           │                    RV2 100kΩ Log (EDGER LEVEL)         │
+           └────────────────────◁──/\/\/──┤                         │
+                                          │                         │
+                                         OUT ──────────▶ TO TILT TONE
+```
+
+**Component Values:**
+- R1: 4.7 kΩ (input resistor)
+- R2: 47 kΩ (feedback resistor — gain = R2/R1 = 10×/20 dB)
+- D1a, D1b: 1N4148 (silicon, ~0.6 V clip) for soft clip — **OR** use LEDs (1N34A germanium for ~0.3 V, or red LEDs for ~1.7 V clip — experiment!)
+- D2a, D2b: 1N4148 for hard clip
+- R3, R4: 10 kΩ (unity-gain inverter)
+- RV2: 100 kΩ log pot (EDGER LEVEL knob)
+- SW3: 1P3T (clean/soft/hard mode selector)
+- SW4: DPDT toggle (invert on/off)
+
+**How the clipping works:**
+- **Clean**: Only R2 in feedback. Linear gain of 10×.
+- **Soft Clip**: Diodes in parallel with R2. When signal exceeds ~0.6 V, diodes conduct and reduce gain → smooth, round clipping.
+- **Hard Clip**: Diodes to ground after op-amp. Output is hard-limited to ±0.6 V → aggressive, square-wave-like distortion.
+
+---
+
+### 5. Tilt Tone Control
+
+A single-knob EQ that tilts the frequency response around a center point (~800 Hz). Turning CW boosts treble and cuts bass; turning CCW boosts bass and cuts treble. This is the same topology as the TalkStar but with a wider range.
+
+#### Schematic
+
+```
+                R1 20kΩ           R2 20kΩ
+EDGER OUT ────/\/\/──┬──────────/\/\/──────┬─────────────────┐
+                     │                     │                 │
+                    C1                     │            ┌────┤-   ┐
+                   4.7nF                   │            │    │NE   │
+                     │                     │            │    │5532 ├──┬──▶ TO VOL
+                     ├──── RV3 ────────────┤            │    │ A   │  │
+                     │   50kΩ Lin           │        ┌───┤+  │     ┘  │
+                     │  (TONE knob)        │        │   └──┤     ┘    │
+                     │                     │        │      │          │
+                    C2                    C3       GND    V+  V-      │
+                   47nF                  4.7nF           +15  -15     │
+                     │                     │                          │
+                    GND                   GND                         │
+                                                                      │
+                          R3 20kΩ                                     │
+                     ┌───/\/\/─────────────────────────────────────────┘
+                     │
+                     └──▶ (feedback to inverting input)
+```
+
+**Component Values:**
+- R1, R2, R3: 20 kΩ
+- C1: 4.7 nF
+- C2: 47 nF
+- C3: 4.7 nF
+- RV3: 50 kΩ linear pot (TONE knob)
+
+**Behavior:**
+- Pot center → flat response
+- Pot CW → treble boost / bass cut (~±6 dB tilt)
+- Pot CCW → bass boost / treble cut (~±6 dB tilt)
+- Center/pivot frequency ≈ 800 Hz
+
+---
+
+### 6. Volume Control
+
+Simple but important. A log-taper pot followed by a buffer to present a low impedance to the power amp input.
+
+#### Schematic
+
+```
+                    RV4 100kΩ Log (VOLUME)
+TONE OUT ──────────/\/\/──┬────◁
+                          │
+                          │         ┌─────┐
+                          │      ┌──┤+    │
+                          └──────┤  │NE   ├──┬──▶ TO POWER AMP
+                                 │  │5532 │  │
+                             ┌───┤- │ B   │  │
+                             │   └──┤     ┘  │
+                             │      │        │
+                             └──────┴────────┘  (Unity gain buffer)
+                                    │
+                                   V+  V-
+                                  +15  -15
+```
+
+**Component Values:**
+- RV4: 100 kΩ logarithmic (audio taper) pot (VOLUME knob)
+- Buffer: NE5532 section (remaining half of a dual op-amp)
+
+---
+
+### 7. Power Amplifier — TPA3255 (Class D, 100 W into 16 Ω)
+
+The TPA3255 is TI's flagship Class D audio amplifier:
+- Up to **315 W** in PBTL mode, **>90% efficiency**, **48 V direct supply**
+- In **BTL mode** at 48 V into 16 Ω: **~100–120 W RMS**
+
+**Key Components:**
+- TPA3255DKDR (QFN-44)
+- L1, L2: 22 µH power inductors (Bourns SRP1245A-220M, ≥5 A)
+- C_out: 1 µF / 100 V film (output filter)
+- Zobel: 100 nF / 100 V + 10 Ω per channel
+- C_bulk: 2× 470 µF / 63 V, C_dec: 4× 100 nF + 2× 10 µF MLCC
+- Follow TI SLAA701 reference layout — Class D is **very layout-sensitive**
+
+| Parameter | Value |
+|---|---|
+| Output Power (BTL, 16 Ω, 48 V, 1% THD) | ~100 W RMS |
+| Efficiency | >90% |
+| SNR | >105 dB |
+
+---
+
+### 8. LED Lighting System (Signal-Following Brightness)
+
+Envelope follower (precision rectifier + RC filter) drives an IRLZ44N MOSFET to modulate LED brightness proportional to signal amplitude.
+
+- R1: 10 kΩ, D1: 1N4148, R3: 100 kΩ, C1: 10 µF (τ ≈ 1s decay)
+- Q1: IRLZ44N logic-level MOSFET, R4: 10 kΩ gate resistor
+- 12 white LEDs: 3 parallel strings of 4 series, R_led = 150 Ω each, powered from +15 V
+- SW5: SPST toggle (LED on/off)
+
+---
+
+### 9. True Bypass (Relay + Footswitch)
+
+DPDT relay (Omron G5V-2-DC5) driven by 2N3904 + CD4013 D flip-flop toggle.
+
+- Footswitch: momentary NO → CLK of CD4013 (Q̄→D for toggle)
+- K1 relay: COM1=Input, COM2=Amp input, NC paths create bypass wire
+- Bypass LED: green 3mm, 330 Ω from +5V, driven by Q output
+
+---
+
+## Op-Amp Allocation (NE5532 = dual)
+
+| IC | Section A | Section B |
+|---|---|---|
+| **U1** | Preamp (gain stage) | Thru output buffer |
+| **U2** | HPF Sallen-Key | Invert stage |
+| **U3** | Edger clipping | Tilt tone |
+| **U4** | Volume buffer | Envelope follower |
+
+---
+
+## Master BOM
+
+### ICs
+
+| Qty | Part | Package | Notes |
+|---|---|---|---|
+| 1 | TPA3255DKDR | QFN-44 | Class D power amp |
+| 4 | NE5532P | DIP-8 | Low-noise dual op-amp |
+| 1 | CD4013BE | DIP-14 | Dual D flip-flop (bypass toggle) |
+| 1 | LM2596S-5.0 | TO-263 | 5V buck regulator |
+| 1 | TRACO TEN 5-4823 | DIP-24 | 48V → ±15V isolated DC-DC |
+
+### Semiconductors
+
+| Qty | Part | Notes |
+|---|---|---|
+| 6 | 1N4148 | Signal diodes (clipping + protection) |
+| 1 | SB560 or SS54 | 5A Schottky (reverse polarity protection) |
+| 1 | 1N5819 | Schottky (buck freewheeling) |
+| 1 | IRLZ44N | Logic-level N-MOSFET (LED driver) TO-220 |
+| 1 | 2N3904 | NPN transistor (relay driver) TO-92 |
+
+### Relay
+
+| Qty | Part | Notes |
+|---|---|---|
+| 1 | Omron G5V-2-DC5 | DPDT 5V coil, signal relay |
+
+### Resistors (1/4W 1% metal film unless noted)
+
+| Qty | Value | Purpose |
+|---|---|---|
+| 2 | 1 MΩ | Input impedance / pulldown |
+| 1 | 47 kΩ | Preamp feedback |
+| 1 | 1 kΩ | Preamp gain floor |
+| 2 | 8.2 kΩ | HPF 200 Hz pair |
+| 2 | 10 kΩ | HPF 150 Hz pair |
+| 2 | 15 kΩ | HPF 100 Hz pair |
+| 1 | 4.7 kΩ | Edger input R |
+| 1 | 47 kΩ | Edger feedback |
+| 2 | 10 kΩ | Inverter equal R pair |
+| 3 | 20 kΩ | Tilt tone network |
+| 1 | 20 kΩ | TPA3255 input bias |
+| 2 | 10 Ω 1W | Zobel network |
+| 3 | 10k + 100k + 10k | Envelope follower |
+| 3 | 150 Ω 1/2W | LED string current limit |
+| 1 | 330 Ω | Bypass indicator LED |
+| 1 | 8.2 kΩ | Power indicator LED |
+| 3 | 10 kΩ | Relay / flip-flop / debounce |
+
+### Capacitors
+
+| Qty | Value | Type | Purpose |
+|---|---|---|---|
+| 3 | 100 nF | Film | Coupling (input, HPF, output) |
+| 1 | 4.7 nF | Film | Tilt bass leg |
+| 1 | 47 nF | Film | Tilt mid |
+| 1 | 4.7 nF | Film | Tilt treble leg |
+| 2 | 1 µF | Film | TPA3255 input coupling |
+| 2 | 100 nF | Ceramic C0G | Zobel |
+| 4 | 100 nF | MLCC X7R | PVCC bypass |
+| 2 | 10 µF | MLCC X5R | PVCC bulk |
+| 2 | 100 nF | Ceramic | Bootstrap |
+| 2 | 470 µF 63V | Electrolytic | 48V rail bulk |
+| 2 | 100 µF 25V | Electrolytic | ±15V rail bulk |
+| 8 | 100 nF | Ceramic | Op-amp V+/V− bypass (×4 ICs) |
+| 2 | 10 µF 25V | Electrolytic | ±15V extra filtering |
+| 1 | 220 µF 10V | Electrolytic | 5V buck output |
+| 2 | 100 nF + 10 µF | Ceramic + Elec | HPF Sallen-Key pair |
+| 1 | 10 µF | Electrolytic | Envelope filter |
+| 1 | 100 nF | Ceramic | Debounce |
+
+### Inductors
+
+| Qty | Value | Rating | Purpose |
+|---|---|---|---|
+| 2 | 22 µH | 5A, shielded (Bourns SRP1245A) | TPA3255 LC output filter |
+| 1 | 33 µH | 1A | LM2596 buck inductor |
+
+### Potentiometers (16mm Alpha, D-shaft)
+
+| Qty | Value | Taper | Label |
+|---|---|---|---|
+| 1 | 100 kΩ | Log (A) | GAIN |
+| 1 | 100 kΩ | Log (A) | EDGER |
+| 1 | 50 kΩ | Linear (B) | TONE |
+| 1 | 100 kΩ | Log (A) | VOLUME |
+
+### Switches
+
+| Qty | Type | Purpose |
+|---|---|---|
+| 1 | SPST toggle | Power on/off |
+| 1 | 1P3T rotary | HPF frequency select (100/150/200 Hz) |
+| 1 | 1P3T rotary | Edger mode (clean/soft/hard) |
+| 1 | DPDT toggle | Phase invert |
+| 1 | SPST toggle | LED system on/off |
+
+### Connectors
+
+| Qty | Type | Purpose |
+|---|---|---|
+| 1 | 1/4" mono jack | Guitar INPUT |
+| 1 | 1/4" mono jack | THRU output |
+| 1 | 1/4" TRS jack | Footswitch |
+| 1 | Screw terminal or Speakon NL2 | Speaker output |
+| 1 | DC barrel jack 5.5×2.5mm | 48V power input |
+| 1 | JST-XH 2-pin header | Internal LED strip connector |
+
+### LEDs
+
+| Qty | Part | Purpose |
+|---|---|---|
+| 12 | White 5mm (20mA, 3.2V) | Enclosure lighting (3 strings of 4) |
+| 1 | Green 3mm | Bypass indicator |
+| 1 | Red 3mm | Power indicator |
+
+### Misc Hardware
+
+| Qty | Part |
+|---|---|
+| 1 | 3A fuse + panel-mount holder |
+| 4 | Knobs (D-shaft, to match pots) |
+| 1 | Hammond 1590DD enclosure (187.5×119.5×37mm) |
+| 4 | M3×10mm standoffs + screws (PCB mount) |
+| 1 | Momentary SPST footswitch (NO) |
+| — | 22 AWG hookup wire, heatshrink, solder |
+
+### External (not on PCB)
+
+| Qty | Part | Notes |
+|---|---|---|
+| 1 | 48V / 5A DC power brick | 240W, IEC C14 input |
+| 1 | MIYAKO DU-100 | 100W 16Ω compression driver |
+| 1 | Vinyl tube 3/8" ID × 3 ft | Medical/food-grade |
+| 1 | Tube-to-driver threaded adapter | 3D-printed or machined |
+
+---
+
+## PCB Design Guidelines
+
+1. **4-layer board recommended** — L1: Signal + Power, L2: GND plane, L3: ±15V/5V planes, L4: Signal + Power
+2. **Solid ground plane (L2)** — unbroken under TPA3255 and analog sections
+3. **Star ground topology** — single point where analog GND, digital GND, and power GND meet at TPA3255 PGND
+4. **TPA3255 layout** — follow TI SLAA701 app note; decoupling caps within 3mm of pins; ≥9 thermal vias under exposed pad; differential output traces matched length ±0.5mm
+5. **Power trace widths** — 48V rail ≥ 2mm (3A); speaker outputs ≥ 2mm; ±15V ≥ 0.5mm; 5V ≥ 0.75mm
+6. **Signal traces** — ≥ 0.25mm (10 mil); route away from Class D outputs and switching inductor
+7. **100nF bypass cap at every op-amp V+ and V− pin** — place as close as physically possible
+8. **Input wiring** — shielded cable from input jack to PCB; twisted pair from PCB speaker out to Speakon jack
+
+---
+
+## Power Budget
+
+| Rail | Source | Load | Current |
+|---|---|---|---|
+| 48V | Brick direct | TPA3255 PVCC | ~2.3A peak |
+| ±15V | TRACO TEN 5-4823 | 4× NE5532 | ~40 mA |
+| +5V | LM2596 buck | Relay + CD4013 + LEDs | ~200 mA |
+| **Total** | | | **~2.7A from 48V** (5A brick = 54% headroom) |
+
+---
+
+## Signal Chain Summary
+
+```
+Guitar → [Input Jack] → [Relay Bypass SW] → C_in →
+  Preamp (NE5532, gain pot 1-47×) →
+  HPF (Sallen-Key 2nd order, switchable 100/150/200 Hz) →
+  Edger (clean / soft-clip / hard-clip, invert switch) →
+  Tilt Tone (single knob, ~800 Hz pivot) →
+  Volume (log pot + buffer) →
+  TPA3255 (BTL, 48V, ~100W into 16Ω) →
+  LC Filter → [Speaker Terminal] → MIYAKO DU-100 → Vinyl Tube → Mouth
+```
+
+---
+
+## References & Datasheets
+
+- [TPA3255 Datasheet + EVM Layout Guide (TI SLAA701)](https://www.ti.com/product/TPA3255)
+- [NE5532 Datasheet](https://www.ti.com/product/NE5532)
+- [CD4013B Datasheet](https://www.ti.com/product/CD4013B)
+- [LM2596 Datasheet](https://www.ti.com/product/LM2596)
+- [TRACO TEN 5 Series](https://www.tracopower.com/products/ten5.pdf)
+- [MIYAKO DU-100 Specs](https://miyakopro.com)
+
+---
+
+## Build Notes
+
+1. **Power supply first** — solder buck + TRACO + protection. Verify 5V, ±15V, 48V before inserting ICs
+2. **Op-amp stages next** — install NE5532 sockets. Test each stage with a signal generator + oscilloscope
+3. **TPA3255 last** — QFN package requires solder paste + hot-air or reflow oven. Inspect for solder bridges
+4. **Dummy load test** — use 16Ω / 100W resistor before connecting the compression driver
+5. **Grounding** — verify star ground. Touch up any ground loops with scope probe on speaker output
+6. **Vinyl tube** — 3/8" ID medical-grade. Thread onto driver horn with 3D-printed adapter. ~3 ft length
+7. **Enclosure** — drill template for 4 pots, 5 switches, 4 jacks, 1 fuse, 1 DC jack. Label with rub-on transfers or UV print
+
+---
+
+*Designed to outperform the Banshee TalkStar at every stage. Let's build it.*
