@@ -1,15 +1,15 @@
 # TalkBox — High-Power Talk Box PCB Project
 
 > A from-scratch, no-compromise talk box design built to outperform the TalkStar.
-> **100 W Class D** into a **MIYAKO DU-100 compression driver** (16 Ω), powered by a **48 V / 5 A** brick.
+> **~65 W clean Class D** into a **MIYAKO DU-100 compression driver** (16 Ω), powered by a **48 V** supply — delivering **133 dB SPL** (3× the TalkStar's power).
 
 ---
 
 ## Design Goals
 | Feature | TalkStar | **TalkBox (Ours)** |
 |---|---|---|
-| Power Amplifier | 20 W RMS (Class AB) | **100+ W RMS (Class D, TPA3255)** |
-| Supply | 24 V / 60 W brick | **48 V / 240 W brick** |
+| Power Amplifier | 20 W RMS (Class AB) | **~65 W clean RMS (Class D, TPA3255) — 3.25× more power** |
+| Supply | 24 V / 60 W brick | **48 V / ≥3 A supply (many options — see sourcing guide)** |
 | Driver | Generic compression driver | **MIYAKO DU-100 (100 W, 16 Ω, 115 dB/W/m)** |
 | Preamp | Single op-amp stage | **Low-noise NE5532 differential input** |
 | High-Pass Filter | Fixed 150 Hz | **Switchable 100 Hz / 150 Hz / 200 Hz** |
@@ -85,7 +85,7 @@
 
 ### 1. Power Supply
 
-The 48 V / 5 A (240 W) external brick feeds the board through a DC barrel jack. On-board, we derive three rails:
+A 48 V / ≥3 A external supply feeds the board through a DC barrel jack (see **Power Supply Sourcing Guide** below for specific recommendations). On-board, we derive three rails:
 
 | Rail | Purpose | Method |
 |---|---|---|
@@ -412,14 +412,16 @@ TONE OUT ──────────/\/\/──┬────◁
 
 ---
 
-### 7. Power Amplifier — TPA3255 (Class D, 100 W into 16 Ω)
+### 7. Power Amplifier — TPA3255 (Class D, ~65 W clean into 16 Ω)
 
 The TPA3255 is TI's flagship Class D audio amplifier:
-- Up to **315 W** in PBTL mode, **>90% efficiency**, **48 V direct supply**
-- In **BTL mode** at 48 V into 16 Ω: **~100–120 W RMS**
+- Up to **315 W** in PBTL mode, **>90% efficiency**, **18–53.5 V** supply range
+- In **BTL mode** at 48 V into 16 Ω: **~65 W RMS clean** (1% THD+N)
+- Available in **HTSSOP-44** (TPA3255DDV) — **hand-solderable** with exposed leads on 0.5 mm pitch
+- Also available in QFN-44 (TPA3255DKD) if you prefer reflow
 
 **Key Components:**
-- TPA3255DKDR (QFN-44)
+- TPA3255DDV (HTSSOP-44, recommended) or TPA3255DKDR (QFN-44)
 - L1, L2: 22 µH power inductors (Bourns SRP1245A-220M, ≥5 A)
 - C_out: 1 µF / 100 V film (output filter)
 - Zobel: 100 nF / 100 V + 10 Ω per channel
@@ -428,9 +430,11 @@ The TPA3255 is TI's flagship Class D audio amplifier:
 
 | Parameter | Value |
 |---|---|
-| Output Power (BTL, 16 Ω, 48 V, 1% THD) | ~100 W RMS |
+| Output Power (BTL, 16 Ω, 48 V, 1% THD) | ~65 W RMS |
+| Output Power (BTL, 16 Ω, 48 V, 10% THD) | ~75 W RMS |
 | Efficiency | >90% |
 | SNR | >105 dB |
+| SPL at driver (65 W into DU-100) | **~133 dB** |
 
 ---
 
@@ -455,6 +459,98 @@ DPDT relay (Omron G5V-2-DC5) driven by 2N3904 + CD4013 D flip-flop toggle.
 
 ---
 
+## Power Analysis — The Honest Math
+
+Understanding exactly how much clean power we deliver to the driver:
+
+**BTL Class D formula:** $P = \frac{(V_{PVCC} - V_{drop})^2}{2 \times R_L}$
+
+| Parameter | Value |
+|---|---|
+| PVCC (supply voltage) | 48 V |
+| V_drop (MOSFET losses, ~4 FETs in BTL path) | ~2 V |
+| R_L (DU-100 impedance) | 16 Ω |
+| **P_clean (1% THD+N)** | **(48 − 2)² / (2 × 16) = ~66 W RMS** |
+| P_clipping (10% THD) | ~75 W RMS |
+
+**What does 65 W mean in practice?**
+
+| Power | SPL at Driver (115 dB/W/m) | Context |
+|---|---|---|
+| TalkStar (20 W) | 128 dB | Already painfully loud |
+| **TalkBox at 65 W** | **133 dB** | **Jet engine at 100 ft** |
+| Theoretical 100 W | 135 dB | Only 2 dB more — barely audible difference |
+
+> **Key insight:** Going from 65 W to 100 W adds only **1.9 dB** — not a perceptible loudness increase. The TalkStar runs 20 W; we run 65 W clean. That's a **5 dB advantage** — noticeably and significantly louder, with massive headroom for clean peaks.
+
+**Why not push to 100 W?**
+- TPA3255 max PVCC is 53.5 V → ~78 W max into 16 Ω (still not 100 W)
+- Running the DU-100 at its absolute thermal limit shortens its life dramatically
+- At 65 W you're at 65% of the driver's rated power — **perfect for reliability + clean headroom**
+- Talkbox use is inherently bursty (musical phrases, not continuous sine) — thermal load is well below rated
+
+**Bottom line:** 48 V supply gives us the ideal balance of power, driver longevity, and clean headroom.
+
+---
+
+## Power Supply Sourcing Guide
+
+You need **48 V / ≥3 A** (144 W minimum). You do NOT need 5 A — the amp draws ~1.5 A peak plus ~0.2 A for the analog section. A 3 A supply gives comfortable headroom.
+
+### Option A: Desktop Adapter (Recommended — Simplest)
+
+Plug-and-play, UL/CE certified, fully isolated from mains. Just wire to a DC barrel jack.
+
+| Supply | Rating | Connector | Price | Where to Buy |
+|---|---|---|---|---|
+| Mean Well GST160A48-R7B | 48 V / 3.34 A (160 W) | 3-pin IEC inlet | ~$30–40 | Mouser, Digi-Key, Amazon |
+| Mean Well GST220A48-R7B | 48 V / 4.6 A (220 W) | 3-pin IEC inlet | ~$35–50 | Mouser, Digi-Key |
+| Generic "48V 3A adapter" | 48 V / 3 A | Barrel 5.5×2.5 mm | ~$12–20 | Amazon, AliExpress |
+
+> **Mean Well GST160A48** is the sweet-spot pick: reliable brand, exactly the right power, widely stocked.
+
+### Option B: Open-Frame Internal Supply
+
+Mount inside the enclosure with an IEC C14 panel inlet. Cheaper, but requires mains wiring (120/240 VAC inside the box — use caution and proper insulation).
+
+| Supply | Rating | Size | Price |
+|---|---|---|---|
+| Mean Well LRS-150-48 | 48 V / 3.2 A (150 W) | 159×97×30 mm | ~$18 |
+| Mean Well LRS-200-48 | 48 V / 4.4 A (200 W) | 159×97×30 mm | ~$22 |
+
+### Option C: Surplus / Repurposed
+
+48 V is standard for telecom and PoE network equipment. Surplus server and PoE switch power supplies are abundant on eBay for $10–15. Just verify polarity and ripple with a scope before use.
+
+### What about 36 V or 24 V?
+
+| Supply Voltage | Power into 16 Ω | Verdict |
+|---|---|---|
+| 24 V | ~16 W | Same as TalkStar — defeats the purpose |
+| 36 V | ~36 W | Passable, but sacrifices half the power |
+| **48 V** | **~65 W** | **Sweet spot for this driver** |
+| 51 V (max recommended) | ~75 W | Marginal gain, harder to source |
+
+**Stick with 48 V.** It's the right voltage for 16 Ω and widely available.
+
+---
+
+## Driver Protection
+
+The DU-100 is rated 100 W. Our amp delivers ~65 W clean — 35 W of built-in thermal margin. Additional protection:
+
+1. **Speaker-line fuse** — Add a **2 A slow-blow fuse** in series with the speaker output. At 2 A RMS into 16 Ω = 64 W continuous. Peaks above 2 A pass through (slow-blow), but sustained overload blows the fuse before the voice coil burns. Cost: $0.50.
+
+2. **TPA3255 built-in protection** — Overcurrent (OCP), over-temperature (OTP), and short-circuit protection. These protect the amp IC itself.
+
+3. **Thermal management** — The DU-100 horn body is the heatsink. Ensure adequate ventilation around the driver. Don't enclose it in an airtight box.
+
+4. **Duty cycle** — Talkbox use is inherently intermittent (you play phrases, not continuous tones). Real-world average power is typically 10–20 W even when peaks hit 60 W. This is very safe for the driver.
+
+> **Practical rule of thumb:** If the driver horn gets too hot to touch (~60°C), back off the volume. Otherwise, you're fine.
+
+---
+
 ## Op-Amp Allocation (NE5532 = dual)
 
 | IC | Section A | Section B |
@@ -472,7 +568,7 @@ DPDT relay (Omron G5V-2-DC5) driven by 2N3904 + CD4013 D flip-flop toggle.
 
 | Qty | Part | Package | Notes |
 |---|---|---|---|
-| 1 | TPA3255DKDR | QFN-44 | Class D power amp |
+| 1 | TPA3255DDV | HTSSOP-44 | Class D power amp (hand-solderable) |
 | 4 | NE5532P | DIP-8 | Low-noise dual op-amp |
 | 1 | CD4013BE | DIP-14 | Dual D flip-flop (bypass toggle) |
 | 1 | LM2596S-5.0 | TO-263 | 5V buck regulator |
@@ -588,6 +684,7 @@ DPDT relay (Omron G5V-2-DC5) driven by 2N3904 + CD4013 D flip-flop toggle.
 | Qty | Part |
 |---|---|
 | 1 | 3A fuse + panel-mount holder |
+| 1 | 2A slow-blow fuse (speaker protection) |
 | 4 | Knobs (D-shaft, to match pots) |
 | 1 | Hammond 1590DD enclosure (187.5×119.5×37mm) |
 | 4 | M3×10mm standoffs + screws (PCB mount) |
@@ -598,7 +695,7 @@ DPDT relay (Omron G5V-2-DC5) driven by 2N3904 + CD4013 D flip-flop toggle.
 
 | Qty | Part | Notes |
 |---|---|---|
-| 1 | 48V / 5A DC power brick | 240W, IEC C14 input |
+| 1 | 48V / ≥3A DC power supply | ≥144W (see Sourcing Guide above) |
 | 1 | MIYAKO DU-100 | 100W 16Ω compression driver |
 | 1 | Vinyl tube 3/8" ID × 3 ft | Medical/food-grade |
 | 1 | Tube-to-driver threaded adapter | 3D-printed or machined |
@@ -622,10 +719,10 @@ DPDT relay (Omron G5V-2-DC5) driven by 2N3904 + CD4013 D flip-flop toggle.
 
 | Rail | Source | Load | Current |
 |---|---|---|---|
-| 48V | Brick direct | TPA3255 PVCC | ~2.3A peak |
+| 48V | Supply direct | TPA3255 PVCC | ~1.5A peak (65W/48V/0.9 eff) |
 | ±15V | TRACO TEN 5-4823 | 4× NE5532 | ~40 mA |
 | +5V | LM2596 buck | Relay + CD4013 + LEDs | ~200 mA |
-| **Total** | | | **~2.7A from 48V** (5A brick = 54% headroom) |
+| **Total** | | | **~1.8A from 48V** (3A supply = 40% headroom) |
 
 ---
 
@@ -638,7 +735,7 @@ Guitar → [Input Jack] → [Relay Bypass SW] → C_in →
   Edger (clean / soft-clip / hard-clip, invert switch) →
   Tilt Tone (single knob, ~800 Hz pivot) →
   Volume (log pot + buffer) →
-  TPA3255 (BTL, 48V, ~100W into 16Ω) →
+  TPA3255 (BTL, 48V, ~65W clean into 16Ω) →
   LC Filter → [Speaker Terminal] → MIYAKO DU-100 → Vinyl Tube → Mouth
 ```
 
@@ -659,7 +756,7 @@ Guitar → [Input Jack] → [Relay Bypass SW] → C_in →
 
 1. **Power supply first** — solder buck + TRACO + protection. Verify 5V, ±15V, 48V before inserting ICs
 2. **Op-amp stages next** — install NE5532 sockets. Test each stage with a signal generator + oscilloscope
-3. **TPA3255 last** — QFN package requires solder paste + hot-air or reflow oven. Inspect for solder bridges
+3. **TPA3255 last** — HTSSOP-44 package: fine-pitch (0.5mm) but hand-solderable with flux, fine tip iron, and solder wick. Use plenty of flux on the exposed pad and tack corners first. Inspect for solder bridges with magnification
 4. **Dummy load test** — use 16Ω / 100W resistor before connecting the compression driver
 5. **Grounding** — verify star ground. Touch up any ground loops with scope probe on speaker output
 6. **Vinyl tube** — 3/8" ID medical-grade. Thread onto driver horn with 3D-printed adapter. ~3 ft length
